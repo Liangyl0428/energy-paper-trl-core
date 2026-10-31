@@ -9,8 +9,15 @@
 ```bash
 python -m pip install -e '.[dev]'          # 核心：无第三方运行时依赖
 python -m pip install -e '.[models]'       # 可选：SVM/SciBERT 适配器（sklearn + torch）
-python -m pytest -q
+python -m pytest -q                        # 41 passed, 5 skipped（模型用例按需跳过）
 ```
+
+> **安装方式必须是 `-e`（editable）**：标准层配置 `config/qgdw_12566_2025.json` 按仓库布局定位，
+> 非 editable 安装（`pip install .`）不会携带它，`analyze()` 会抛 `FileNotFoundError`。
+> 确实要装成 wheel 时请设置 `ENERGY_PAPER_TRL_STANDARD=/绝对路径/qgdw_12566_2025.json`。
+>
+> **不要与完整版同环境安装**：两者的发行名同为 `energy-paper-trl`、模块名同为 `energy_paper_trl`，
+> 装进同一个虚拟环境会互相覆盖；请为本仓库单独建环境。
 
 ## 快速开始
 
@@ -161,6 +168,7 @@ tests/            规则、门禁、归因、接口契约测试
 ## 限制
 
 - 只读标题与摘要：全文、测试记录、型式试验报告、专家审查不在接口内，`formal_certified_level` 恒为 `null`；
+- 仅支持 editable 安装；标准层配置可用 `ENERGY_PAPER_TRL_STANDARD` 覆盖；
 - 门槛关键词是本项目默认细则，不是标准统一规定，具体技术需专家按附录 C 配置；
 - 输出是**公开证据初评**，不能作为正式 TRL 认证结论；
 - 分类器分数未校准，且其训练语料与论文摘要存在分布差异，只作为第二意见。
