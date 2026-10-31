@@ -115,19 +115,31 @@ python -m energy_paper_trl --backend scibert --model-path /path/to/scibert_local
 python -m energy_paper_trl --backend scibert --model-path ... --no-explain          # 只出等级，跳过归因
 ```
 
-**当前版本的模型是 11 类头**（balanced 2026-10-23 产物）。本仓库不随交付权重，"当前版本"指配合这套权重的类别空间：
+**当前版本只支持 11 类头**（balanced 2026-10-23 的 `svm_local.joblib` / `scibert_local`）：
+TRL 1–9 + `not_applicable` + `insufficient_evidence`，可以弃权——弃权时 `level: null`
+（`status` 为 `insufficient_evidence` / `not_applicable`），不会写成 10/11。结果里的
+`model_prediction.head_width` 恒为 **11**，可直接核对。
 
-| | 当前版本（推荐） | 旧试验权重（兼容） |
-| --- | --- | --- |
-| 头宽 | **11 类** | 9 类 |
-| 类别 | TRL 1–9 + `not_applicable` + `insufficient_evidence` | TRL 1–9 |
-| 能否弃权 | 能；弃权时 `level: null`，`status` 为 `insufficient_evidence` / `not_applicable` | 不能，永远给出 1–9 中的一个 |
-| 对应权重 | `svm_local.joblib`、`scibert_local`（balanced run） | `scibert_trial` 等试验权重 |
-| 输出里怎么看 | `model_prediction.head_width` = **11**（SVM 另有 `classes`、SciBERT 另有 `num_labels`，数值相同） | 同上，`head_width` = 9 |
+### 为什么不再兼容 9 类头
 
-- 头宽**不写死**：SciBERT 读 checkpoint 的 `config.id2label` / `num_labels`（只接受 9 或 11，
-  其它宽度直接 `ValueError`，不猜类别顺序；`LABEL_n` 占位名按历史 9/11 布局映射，语义名优先）；
-  SVM 读 `clf.classes_`，按标签名解析（`"1".."9"` → 对应等级，两个弃权名 → `null`）；
+| 权重 | 实验版本 | 类别 | 训练输入 | 状态 |
+| --- | --- | --- | --- | --- |
+| `svm_local.joblib`、`scibert_local` | `paper_trl_balanced_20261023`（2026-10-23 07:10） | 11 类：TRL 1–9 + 两个弃权类 | OpenAlex 论文 `title + "\n" + abstract`，助手语义标注，SciBERT `max_length=512` | **当前版本** |
+| `svm_masked.joblib`、`scibert_trial` | `paper_trl_external_20261023`（2026-10-23 03:16 / 03:21） | 9 类：TRL 1–9 | CORDIS 欧盟项目「项目名 + 项目目标」，项目级银标，SciBERT `max_length=256` | **不再支持** |
+
+9 类头不再兼容的三个原因：
+
+1. **不能弃权**：任何输入都被强行给一个等级，与"证据不足就不定级"的设计冲突；
+2. **训练分布不同**：它学的是项目申报书而非论文摘要；在这批 OpenAlex 论文上评测会塌缩到训练先验
+   （大量判 TRL 8），等级不可采信；
+3. **口径不可比**：两套头的 `level` 含义不同，混用会让下游统计失真。
+
+现在加载 9 类 checkpoint 会直接抛 `ValueError`（错误信息会指出改用 balanced 权重），不会静默给等级。
+需要复现旧 9 类权重做对照时，请用完整版 [energy-paper-trl](https://github.com/Liangyl0428/energy-paper-trl)
+的评测脚本（那边保留两套头的对照逻辑）。
+
+- 头宽**不写死但只接受 11**：SciBERT 读 checkpoint 的 `config.id2label` / `num_labels`，SVM 读
+  `clf.classes_`；两者都必须是 TRL 1–9 + 两个弃权类，否则 `ValueError`（不猜类别顺序）；
 - 两个弃权标签不会变成 10/11，也不进入 `levels` 的数值（此时 `levels.model` 为 `null`）；
 - `max_length` 只接受显式参数或 `max_position_embeddings`（不会误取 transformers 的生成默认值 20）；
 - 归因（`attribution`）分 SVM 的 TF-IDF 线性贡献与 SciBERT 的句子遮挡两种，整体标注

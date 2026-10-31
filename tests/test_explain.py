@@ -189,17 +189,18 @@ def test_rationale_warns_when_scibert_is_unsure():
     assert "次优为 TRL 5" in text
 
 
-def test_scibert_level_mapping_follows_head_width():
+def test_scibert_level_mapping_requires_11_class_head():
     adapter = object.__new__(SciBERTAdapter)
     adapter.id2label = {}
-    adapter.num_labels = 9
-    assert adapter.level_for_index(0) == (1, "1")
-    assert adapter.level_for_index(8) == (9, "9")
-
     adapter.num_labels = 11
+    assert adapter.level_for_index(0) == (1, "1")
     assert adapter.level_for_index(3) == (4, "4")
     assert adapter.level_for_index(9) == (None, "not_applicable")
     assert adapter.level_for_index(10) == (None, "insufficient_evidence")
+
+    adapter.num_labels = 9  # legacy paper_trl_external_20261023 head: rejected
+    with pytest.raises(ValueError, match="11-class"):
+        adapter.level_for_index(0)
 
     adapter.num_labels = 0
     adapter.id2label = {0: "LABEL_3"}
@@ -207,14 +208,27 @@ def test_scibert_level_mapping_follows_head_width():
         adapter.level_for_index(0)  # generic LABEL_n at an unknown width: refuse
 
 
-def test_label_map_prefers_semantic_names_and_refuses_to_guess():
-    # generic HF placeholders carry no TRL order: use the historical layout
-    assert resolve_label_map({i: f"LABEL_{i}" for i in range(9)}, 9)[0] == (1, "1")
+def test_label_map_requires_the_full_11_class_schema():
+    generic = {i: f"LABEL_{i}" for i in range(11)}
+    assert resolve_label_map(generic, 11)[0] == (1, "1")
+    assert resolve_label_map(generic, 11)[9] == (None, "not_applicable")
+    assert resolve_label_map(generic, 11)[10] == (None, "insufficient_evidence")
+
     # an explicitly named head is trusted even if it is not index+1
-    named = {0: "9", 1: "4", 2: "not_applicable"}
-    mapping = resolve_label_map(named, 3)
+    named = {
+        0: "9", 1: "4", 2: "1", 3: "2", 4: "3",
+        5: "5", 6: "6", 7: "7", 8: "8",
+        9: "not_applicable", 10: "insufficient_evidence",
+    }
+    mapping = resolve_label_map(named, 11)
     assert mapping[0] == (9, "9") and mapping[1] == (4, "4")
-    assert mapping[2] == (None, "not_applicable")
+    assert mapping[9] == (None, "not_applicable")
+
+    # 9-class heads (levels only, no abstain labels) are no longer supported
+    with pytest.raises(ValueError, match="11-class"):
+        resolve_label_map({i: f"LABEL_{i}" for i in range(9)}, 9)
+    with pytest.raises(ValueError, match="11-class"):
+        resolve_label_map({i: str(i + 1) for i in range(9)}, 9)
     with pytest.raises(ValueError):
         resolve_label_map({0: "4", 1: "4"}, 2)  # duplicate levels
     with pytest.raises(ValueError):
@@ -227,11 +241,21 @@ def test_current_release_head_width_is_11():
     from energy_paper_trl.model import CURRENT_HEAD_WIDTH, SUPPORTED_HEAD_WIDTHS
 
     assert CURRENT_HEAD_WIDTH == 11
-    assert SUPPORTED_HEAD_WIDTHS == (9, 11)
+    assert SUPPORTED_HEAD_WIDTHS == (11,)
     mapping = resolve_label_map({}, CURRENT_HEAD_WIDTH)
     assert mapping[0] == (1, "1")
     assert mapping[9] == (None, "not_applicable")
     assert mapping[10] == (None, "insufficient_evidence")
+
+
+def test_svm_adapter_rejects_nine_class_head():
+    from energy_paper_trl.model import SVMAdapter
+
+    with pytest.raises(ValueError, match="11-class"):
+        SVMAdapter.validate_classes([str(i) for i in range(1, 10)])
+    SVMAdapter.validate_classes(
+        [str(i) for i in range(1, 10)] + ["not_applicable", "insufficient_evidence"]
+    )
 
 
 def test_scibert_predict_reports_head_width():

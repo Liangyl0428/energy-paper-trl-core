@@ -7,11 +7,13 @@ substitute for the quote evidence produced by the rule backend.
 Head width of the current release is **11-way** — levels 1-9 plus the two
 abstain labels ``not_applicable`` / ``insufficient_evidence`` — because the
 balanced 2026-10-23 artifacts (``svm_local.joblib``, ``scibert_local``) were
-trained that way. Older 9-way checkpoints (levels 1-9 only, e.g.
-``scibert_trial``) are still supported: the width is read from the checkpoint
-itself (``config.id2label`` / ``num_labels`` for SciBERT, ``clf.classes_`` for
-SVM), never assumed, and any other width raises ``ValueError`` instead of
-guessing an order.
+trained that way. **Only this schema is supported.** The earlier 9-way
+checkpoints from ``paper_trl_external_20261023`` (``svm_masked.joblib`` /
+``scibert_trial``: CORDIS project texts, project-level silver labels, cannot
+abstain) are rejected with ``ValueError`` — they were trained on a different
+input distribution and, in evaluation, collapsed to the training prior on
+OpenAlex abstracts. Loading a 9-way head must fail loudly instead of silently
+producing a level.
 """
 from __future__ import annotations
 
@@ -22,18 +24,20 @@ from typing import Any
 
 from .explain import as_scores, explain_linear, explain_occlusion, level_from_label
 
-# Label space of the 2026-10-23 experiments. The current release is 11-way
-# (levels 1-9 + the two abstain labels below: models/svm_local.joblib +
-# scibert_local of the balanced run). A 9-way head (levels 1-9 only, e.g.
-# models/scibert_trial) is still supported for older checkpoints. Width is
-# auto-detected, never assumed; see SUPPORTED_HEAD_WIDTHS.
+# Label space of the current release: 11-way only (levels 1-9 + the two abstain
+# labels below), matching models/svm_local.joblib + scibert_local of the
+# balanced 2026-10-23 run. The older 9-way head from
+# work/paper_trl_external_20261023 (models/svm_masked.joblib + models/scibert_trial,
+# CORDIS project texts) is deliberately NOT supported: it cannot abstain and was
+# trained on a different input distribution. See unsupported_head_error().
 CARD_CLASSES = (
     "1", "2", "3", "4", "5", "6", "7", "8", "9",
     "not_applicable", "insufficient_evidence",
 )
-SUPPORTED_HEAD_WIDTHS = (9, 11)
+SUPPORTED_HEAD_WIDTHS = (11,)
 CURRENT_HEAD_WIDTH = 11
 ABSTAIN_LABELS = {"not_applicable", "insufficient_evidence"}
+TRL_LABELS = {str(i) for i in range(1, 10)}
 TRL_LABEL = re.compile(r"\s*(?:TRL\s*)?([1-9])\s*", re.I)
 GENERIC_LABEL = re.compile(r"LABEL_\d+")
 DEFAULT_MAX_LENGTH = 512
@@ -58,15 +62,30 @@ def _parse_label(label: str) -> tuple[int | None, str]:
     return None, label
 
 
+def unsupported_head_error(width: int | None, detail: str = "") -> ValueError:
+    """Uniform error for every head that is not the current 11-class schema."""
+    extra = f" ({detail})" if detail else ""
+    return ValueError(
+        f"unsupported classifier head{extra}: got {width} classes, but this release only "
+        "supports the 11-class head (TRL 1-9 + 'not_applicable' + 'insufficient_evidence'). "
+        "Use models/svm_local.joblib or models/scibert_local from "
+        "paper_trl_balanced_20261023. The 9-class head from paper_trl_external_20261023 "
+        "(models/svm_masked.joblib, models/scibert_trial; CORDIS project texts, no abstain "
+        "classes) is no longer supported."
+    )
+
+
 def resolve_label_map(id2label: dict[int, str] | None, num_labels: int) -> dict[int, tuple[int | None, str]]:
-    """Map head indices to (level, label) without trusting a fixed class order.
+    """Map head indices of the **11-class** head to ``(level, label)``.
 
     A re-headed or re-ordered checkpoint would silently map levels wrong if this
     always assumed ``index + 1``. The rule is:
 
-    1. if ``id2label`` contains recognisable TRL / abstain names, trust it;
-    2. otherwise fall back to the historical layouts (9 = 1..9, 11 = 1..9 + 2),
-       and refuse any other width instead of guessing.
+    1. if ``id2label`` contains recognisable TRL / abstain names, trust it — but
+       it must cover levels 1-9 and both abstain labels;
+    2. generic ``LABEL_n`` checkpoints are mapped by the 11-class layout
+       (indices 0-8 = levels 1-9, 9 = not_applicable, 10 = insufficient_evidence);
+    3. any other width is rejected (notably the legacy 9-class head).
     """
     if id2label:
         values = {int(k): str(v) for k, v in id2label.items()}
@@ -84,22 +103,19 @@ def resolve_label_map(id2label: dict[int, str] | None, num_labels: int) -> dict[
             levels = [level for level, _ in parsed.values() if level is not None]
             if len(levels) != len(set(levels)):
                 raise ValueError(f"duplicate TRL levels in id2label: {id2label}")
+            labels = {label for _, label in parsed.values()}
+            if set(levels) != {int(i) for i in TRL_LABELS} or not ABSTAIN_LABELS <= labels:
+                missing = sorted(TRL_LABELS - {str(lv) for lv in levels}) + sorted(ABSTAIN_LABELS - labels)
+                raise unsupported_head_error(len(values), f"id2label missing {missing}")
             return parsed
         # generic LABEL_0..LABEL_n checkpoints carry no semantic order: use the
-        # historical layouts and refuse anything else instead of guessing.
-    if num_labels == 9:
-        return {i: (i + 1, CARD_CLASSES[i]) for i in range(9)}
-    if num_labels == 11:
+        # 11-class layout and refuse anything else instead of guessing.
+    if num_labels == CURRENT_HEAD_WIDTH:
         return {
             i: ((i + 1, CARD_CLASSES[i]) if i < 9 else (None, CARD_CLASSES[i]))
-            for i in range(11)
+            for i in range(CURRENT_HEAD_WIDTH)
         }
-    raise ValueError(
-        f"cannot infer a TRL label map for num_labels={num_labels}; "
-        f"supported head widths are {SUPPORTED_HEAD_WIDTHS[0]} or {SUPPORTED_HEAD_WIDTHS[1]}, "
-        "otherwise provide config.id2label with names such as '1'..'9', "
-        "'not_applicable', 'insufficient_evidence'"
-    )
+    raise unsupported_head_error(num_labels)
 
 
 class SVMAdapter:
@@ -117,6 +133,15 @@ class SVMAdapter:
         steps = getattr(self.model, "named_steps", None) or {}
         clf = steps.get("clf")
         self.classes = [str(c) for c in clf.classes_] if clf is not None else []
+        if self.classes:
+            self.validate_classes(self.classes)
+
+    @staticmethod
+    def validate_classes(classes: list[str]) -> None:
+        """Accept only the current 11-class head; reject the legacy 9-class one."""
+        labels = {str(c) for c in classes}
+        if len(classes) != CURRENT_HEAD_WIDTH or labels != (TRL_LABELS | ABSTAIN_LABELS):
+            raise unsupported_head_error(len(classes) or None, "loaded SVM classes_")
 
     def _classes(self) -> list[str]:
         classes = getattr(self, "classes", None)
