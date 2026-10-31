@@ -1,19 +1,15 @@
-"""Optional SVM/SciBERT adapters trained in the 2026-10-23 balanced experiment.
+"""Optional SVM/SciBERT adapters.
 
 Both adapters expose ``predict`` (label + score) and ``explain`` (sentence-level
 attribution). The attribution is a post-hoc reading of the classifier, never a
-substitute for the quote evidence produced by the rule backend.
+substitute for the quote evidence produced by the rule backend. Training data
+and hyperparameters are documented in ``docs/model-training.md``.
 
-Head width of the current release is **11-way** — levels 1-9 plus the two
-abstain labels ``not_applicable`` / ``insufficient_evidence`` — because the
-balanced 2026-10-23 artifacts (``svm_local.joblib``, ``scibert_local``) were
-trained that way. **Only this schema is supported.** The earlier 9-way
-checkpoints from ``paper_trl_external_20261023`` (``svm_masked.joblib`` /
-``scibert_trial``: CORDIS project texts, project-level silver labels, cannot
-abstain) are rejected with ``ValueError`` — they were trained on a different
-input distribution and, in evaluation, collapsed to the training prior on
-OpenAlex abstracts. Loading a 9-way head must fail loudly instead of silently
-producing a level.
+The head is **11-way**: levels 1-9 plus the two abstain labels ``not_applicable`` /
+``insufficient_evidence``. Width and label order are read from the checkpoint
+(``config.id2label`` / ``num_labels`` for SciBERT, ``clf.classes_`` for SVM) and
+must match this schema; any other width raises ``ValueError`` instead of being
+guessed.
 """
 from __future__ import annotations
 
@@ -24,12 +20,8 @@ from typing import Any
 
 from .explain import as_scores, explain_linear, explain_occlusion, level_from_label
 
-# Label space of the current release: 11-way only (levels 1-9 + the two abstain
-# labels below), matching models/svm_local.joblib + scibert_local of the
-# balanced 2026-10-23 run. The older 9-way head from
-# work/paper_trl_external_20261023 (models/svm_masked.joblib + models/scibert_trial,
-# CORDIS project texts) is deliberately NOT supported: it cannot abstain and was
-# trained on a different input distribution. See unsupported_head_error().
+# Label space of the classifier head: 11-way (levels 1-9 + the two abstain labels
+# below). Only this schema is accepted; see resolve_label_map().
 CARD_CLASSES = (
     "1", "2", "3", "4", "5", "6", "7", "8", "9",
     "not_applicable", "insufficient_evidence",
@@ -63,15 +55,11 @@ def _parse_label(label: str) -> tuple[int | None, str]:
 
 
 def unsupported_head_error(width: int | None, detail: str = "") -> ValueError:
-    """Uniform error for every head that is not the current 11-class schema."""
+    """Uniform error for any head that is not the 11-class schema."""
     extra = f" ({detail})" if detail else ""
     return ValueError(
-        f"unsupported classifier head{extra}: got {width} classes, but this release only "
-        "supports the 11-class head (TRL 1-9 + 'not_applicable' + 'insufficient_evidence'). "
-        "Use models/svm_local.joblib or models/scibert_local from "
-        "paper_trl_balanced_20261023. The 9-class head from paper_trl_external_20261023 "
-        "(models/svm_masked.joblib, models/scibert_trial; CORDIS project texts, no abstain "
-        "classes) is no longer supported."
+        f"unsupported classifier head{extra}: got {width} classes; this release expects the "
+        "11-class head (TRL 1-9 + 'not_applicable' + 'insufficient_evidence')."
     )
 
 
@@ -85,7 +73,7 @@ def resolve_label_map(id2label: dict[int, str] | None, num_labels: int) -> dict[
        it must cover levels 1-9 and both abstain labels;
     2. generic ``LABEL_n`` checkpoints are mapped by the 11-class layout
        (indices 0-8 = levels 1-9, 9 = not_applicable, 10 = insufficient_evidence);
-    3. any other width is rejected (notably the legacy 9-class head).
+    3. any other width is rejected.
     """
     if id2label:
         values = {int(k): str(v) for k, v in id2label.items()}
@@ -138,7 +126,7 @@ class SVMAdapter:
 
     @staticmethod
     def validate_classes(classes: list[str]) -> None:
-        """Accept only the current 11-class head; reject the legacy 9-class one."""
+        """Accept only the 11-class head; reject any other width."""
         labels = {str(c) for c in classes}
         if len(classes) != CURRENT_HEAD_WIDTH or labels != (TRL_LABELS | ABSTAIN_LABELS):
             raise unsupported_head_error(len(classes) or None, "loaded SVM classes_")

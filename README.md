@@ -4,12 +4,12 @@
 可逐字回原文核对的引文、缺失属性、以及"为什么不是更高等级"。
 
 本仓库只包含当前版本的核心算法（规则引擎 + 标准门禁 + 可选分类器适配器）。不包含训练数据、
-评测集、历史权重与实验脚本。
+评测集、权重与实验脚本。
 
 ```bash
 python -m pip install -e '.[dev]'          # 核心：无第三方运行时依赖
 python -m pip install -e '.[models]'       # 可选：SVM/SciBERT 适配器（sklearn + torch）
-python -m pytest -q                        # 41 passed, 5 skipped（模型用例按需跳过）
+python -m pytest -q                        # 44 passed, 5 skipped（模型用例按需跳过）
 ```
 
 > **安装方式必须是 `-e`（editable）**：标准层配置 `config/qgdw_12566_2025.json` 按仓库布局定位，
@@ -115,45 +115,22 @@ python -m energy_paper_trl --backend scibert --model-path /path/to/scibert_local
 python -m energy_paper_trl --backend scibert --model-path ... --no-explain          # 只出等级，跳过归因
 ```
 
-**当前版本只支持 11 类头**（balanced 2026-10-23 的 `svm_local.joblib` / `scibert_local`）：
-TRL 1–9 + `not_applicable` + `insufficient_evidence`，可以弃权——弃权时 `level: null`
-（`status` 为 `insufficient_evidence` / `not_applicable`），不会写成 10/11。结果里的
-`model_prediction.head_width` 恒为 **11**，可直接核对。
+输出头为 **11 类**：TRL 1–9 + `not_applicable` + `insufficient_evidence`。两个弃权类不会写成 10/11：
+弃权时 `level: null`，`status` 为 `insufficient_evidence` / `not_applicable`，`levels.model` 为 `null`。
 
-### 为什么不再兼容 9 类头
+| 字段 | 含义 |
+| --- | --- |
+| `model_prediction.head_width` | 固定为 11 |
+| `model_prediction.level` / `level_label` | 1–9 的等级，或 `null`（弃权类） |
+| `model_prediction.score` | 未校准的置信度 / decision margin（`score_calibrated: false`） |
+| `model_prediction.alternatives` | 前 3 个候选类及其分数 |
+| `attribution` | 句子级归因，`not_evidence: true` |
 
-| 权重 | 实验版本 | 类别 | 训练输入 | 状态 |
-| --- | --- | --- | --- | --- |
-| `svm_local.joblib`、`scibert_local` | `paper_trl_balanced_20261023`（2026-10-23 07:10） | 11 类：TRL 1–9 + 两个弃权类 | OpenAlex 论文 `title + "\n" + abstract`，助手语义标注，SciBERT `max_length=512` | **当前版本** |
-| `svm_masked.joblib`、`scibert_trial` | `paper_trl_external_20261023`（2026-10-23 03:16 / 03:21） | 9 类：TRL 1–9 | CORDIS 欧盟项目「项目名 + 项目目标」，项目级银标，SciBERT `max_length=256` | **不再支持** |
-
-9 类头不再兼容的三个原因：
-
-1. **不能弃权**：任何输入都被强行给一个等级，与"证据不足就不定级"的设计冲突；
-2. **训练分布不同**：它学的是项目申报书而非论文摘要；在这批 OpenAlex 论文上评测会塌缩到训练先验
-   （大量判 TRL 8），等级不可采信；
-3. **口径不可比**：两套头的 `level` 含义不同，混用会让下游统计失真。
-
-现在加载 9 类 checkpoint 会直接抛 `ValueError`（错误信息会指出改用 balanced 权重），不会静默给等级。
-需要复现旧 9 类权重做对照时，请用完整版 [energy-paper-trl](https://github.com/Liangyl0428/energy-paper-trl)
-的评测脚本（那边保留两套头的对照逻辑）。
-
-### 两套头的训练口径
-
-- **11 类（当前）是原生 11 类训练，不是 9 类模型改标签**：训练集 275 篇（11 类 × 25）、验证 55 篇
-  （11 类 × 5），文本为 OpenAlex 论文 `title + "\n" + abstract`，标签来自助手语义标注
-  （`label_source=assistant_semantic_annotation`，非专家金标）。SVM 为 TF-IDF + LinearSVC；
-  SciBERT 以 `allenai/scibert_scivocab_uncased`（base，revision `24f92d3`）初始化后微调，
-  `max_length=512`。
-- **9 类（旧）**：CORDIS 欧盟项目「项目名 + 项目目标」的项目级银标（regex + TF-IDF 相似度生成），
-  9 类不均衡、不能弃权；与 11 类不是同一批数据，也不是同一套标签。
-
-- 头宽**不写死但只接受 11**：SciBERT 读 checkpoint 的 `config.id2label` / `num_labels`，SVM 读
-  `clf.classes_`；两者都必须是 TRL 1–9 + 两个弃权类，否则 `ValueError`（不猜类别顺序）；
-- 两个弃权标签不会变成 10/11，也不进入 `levels` 的数值（此时 `levels.model` 为 `null`）；
+- 头宽与类别顺序由 checkpoint 自带的标签空间解析：SciBERT 读 `config.id2label` / `num_labels`，
+  SVM 读 `clf.classes_`；必须是上述 11 类，否则报错而不是猜；
 - `max_length` 只接受显式参数或 `max_position_embeddings`（不会误取 transformers 的生成默认值 20）；
-- 归因（`attribution`）分 SVM 的 TF-IDF 线性贡献与 SciBERT 的句子遮挡两种，整体标注
-  `not_evidence: true`——它解释分类器，不构成论文证据；分数未校准（`score_calibrated: false`）。
+- 归因分 SVM 的 TF-IDF 线性贡献与 SciBERT 的句子遮挡两种，解释的是分类器，不是论文证据；
+- 训练数据、标签口径与超参见 [docs/model-training.md](docs/model-training.md)。
 
 ## 输出示例
 
@@ -194,6 +171,7 @@ src/energy_paper_trl/
   model.py        SVM / SciBERT 适配器（惰性导入依赖）
   cli.py          命令行
 config/qgdw_12566_2025.json   九级定义 + 默认门槛词表
+docs/model-training.md        当前版本模型的训练数据、标签口径与超参
 tests/            规则、门禁、归因、接口契约测试
 ```
 

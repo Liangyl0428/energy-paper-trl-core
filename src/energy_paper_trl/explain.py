@@ -53,8 +53,8 @@ def _level_name(level: int | None) -> str | None:
 def level_from_label(label: Any) -> int | None:
     """Parse a class label into a TRL level; abstain labels map to ``None``.
 
-    The balanced 2026-10-23 artifacts use string labels, including
-    ``insufficient_evidence`` and ``not_applicable``, which are not TRL levels.
+    The model artifacts use string labels, including ``insufficient_evidence``
+    and ``not_applicable``, which are not TRL levels.
     """
     match = re.fullmatch(r"\s*(?:LABEL_)?([1-9])\s*", str(label))
     return int(match.group(1)) if match else None

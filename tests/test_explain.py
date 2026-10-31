@@ -198,7 +198,7 @@ def test_scibert_level_mapping_requires_11_class_head():
     assert adapter.level_for_index(9) == (None, "not_applicable")
     assert adapter.level_for_index(10) == (None, "insufficient_evidence")
 
-    adapter.num_labels = 9  # legacy paper_trl_external_20261023 head: rejected
+    adapter.num_labels = 9  # levels-only head: rejected
     with pytest.raises(ValueError, match="11-class"):
         adapter.level_for_index(0)
 
@@ -224,7 +224,7 @@ def test_label_map_requires_the_full_11_class_schema():
     assert mapping[0] == (9, "9") and mapping[1] == (4, "4")
     assert mapping[9] == (None, "not_applicable")
 
-    # 9-class heads (levels only, no abstain labels) are no longer supported
+    # levels-only heads (no abstain labels) are rejected
     with pytest.raises(ValueError, match="11-class"):
         resolve_label_map({i: f"LABEL_{i}" for i in range(9)}, 9)
     with pytest.raises(ValueError, match="11-class"):
