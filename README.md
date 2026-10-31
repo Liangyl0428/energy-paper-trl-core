@@ -115,10 +115,20 @@ python -m energy_paper_trl --backend scibert --model-path /path/to/scibert_local
 python -m energy_paper_trl --backend scibert --model-path ... --no-explain          # 只出等级，跳过归因
 ```
 
-- 9 类头（TRL 1–9）无法弃权；11 类头（+`not_applicable`/`insufficient_evidence`）可以弃权，
-  弃权时 `level: null`，不会写成 10/11；
-- 类别顺序优先读 `config.id2label`：语义名按名称映射，`LABEL_n` 按历史 9/11 类布局映射，
-  宽度不认识时直接报错而不是猜；
+**当前版本的模型是 11 类头**（balanced 2026-10-23 产物）。本仓库不随交付权重，"当前版本"指配合这套权重的类别空间：
+
+| | 当前版本（推荐） | 旧试验权重（兼容） |
+| --- | --- | --- |
+| 头宽 | **11 类** | 9 类 |
+| 类别 | TRL 1–9 + `not_applicable` + `insufficient_evidence` | TRL 1–9 |
+| 能否弃权 | 能；弃权时 `level: null`，`status` 为 `insufficient_evidence` / `not_applicable` | 不能，永远给出 1–9 中的一个 |
+| 对应权重 | `svm_local.joblib`、`scibert_local`（balanced run） | `scibert_trial` 等试验权重 |
+| 输出里怎么看 | `model_prediction.head_width` = **11**（SVM 另有 `classes`、SciBERT 另有 `num_labels`，数值相同） | 同上，`head_width` = 9 |
+
+- 头宽**不写死**：SciBERT 读 checkpoint 的 `config.id2label` / `num_labels`（只接受 9 或 11，
+  其它宽度直接 `ValueError`，不猜类别顺序；`LABEL_n` 占位名按历史 9/11 布局映射，语义名优先）；
+  SVM 读 `clf.classes_`，按标签名解析（`"1".."9"` → 对应等级，两个弃权名 → `null`）；
+- 两个弃权标签不会变成 10/11，也不进入 `levels` 的数值（此时 `levels.model` 为 `null`）；
 - `max_length` 只接受显式参数或 `max_position_embeddings`（不会误取 transformers 的生成默认值 20）；
 - 归因（`attribution`）分 SVM 的 TF-IDF 线性贡献与 SciBERT 的句子遮挡两种，整体标注
   `not_evidence: true`——它解释分类器，不构成论文证据；分数未校准（`score_calibrated: false`）。

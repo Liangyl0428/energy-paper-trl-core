@@ -3,6 +3,15 @@
 Both adapters expose ``predict`` (label + score) and ``explain`` (sentence-level
 attribution). The attribution is a post-hoc reading of the classifier, never a
 substitute for the quote evidence produced by the rule backend.
+
+Head width of the current release is **11-way** — levels 1-9 plus the two
+abstain labels ``not_applicable`` / ``insufficient_evidence`` — because the
+balanced 2026-10-23 artifacts (``svm_local.joblib``, ``scibert_local``) were
+trained that way. Older 9-way checkpoints (levels 1-9 only, e.g.
+``scibert_trial``) are still supported: the width is read from the checkpoint
+itself (``config.id2label`` / ``num_labels`` for SciBERT, ``clf.classes_`` for
+SVM), never assumed, and any other width raises ``ValueError`` instead of
+guessing an order.
 """
 from __future__ import annotations
 
@@ -13,13 +22,17 @@ from typing import Any
 
 from .explain import as_scores, explain_linear, explain_occlusion, level_from_label
 
-# Label space of the 2026-10-23 experiments. Two head widths are in the wild:
-# 9-way (levels 1-9 only, e.g. models/scibert_trial) and 11-way (adds the two
-# abstain labels below, e.g. models/svm_local + scibert_local of the balanced run).
+# Label space of the 2026-10-23 experiments. The current release is 11-way
+# (levels 1-9 + the two abstain labels below: models/svm_local.joblib +
+# scibert_local of the balanced run). A 9-way head (levels 1-9 only, e.g.
+# models/scibert_trial) is still supported for older checkpoints. Width is
+# auto-detected, never assumed; see SUPPORTED_HEAD_WIDTHS.
 CARD_CLASSES = (
     "1", "2", "3", "4", "5", "6", "7", "8", "9",
     "not_applicable", "insufficient_evidence",
 )
+SUPPORTED_HEAD_WIDTHS = (9, 11)
+CURRENT_HEAD_WIDTH = 11
 ABSTAIN_LABELS = {"not_applicable", "insufficient_evidence"}
 TRL_LABEL = re.compile(r"\s*(?:TRL\s*)?([1-9])\s*", re.I)
 GENERIC_LABEL = re.compile(r"LABEL_\d+")
@@ -83,7 +96,8 @@ def resolve_label_map(id2label: dict[int, str] | None, num_labels: int) -> dict[
         }
     raise ValueError(
         f"cannot infer a TRL label map for num_labels={num_labels}; "
-        "provide config.id2label with names such as '1'..'9', "
+        f"supported head widths are {SUPPORTED_HEAD_WIDTHS[0]} or {SUPPORTED_HEAD_WIDTHS[1]}, "
+        "otherwise provide config.id2label with names such as '1'..'9', "
         "'not_applicable', 'insufficient_evidence'"
     )
 
@@ -149,6 +163,7 @@ class SVMAdapter:
             "model": self.model_name,
             "model_path": getattr(self, "model_path", None),
             "classes": len(classes),
+            "head_width": len(classes) or None,
             "evidence": [],
         }
 
@@ -284,6 +299,7 @@ class SciBERTAdapter:
             "model": self.model_name,
             "model_path": self.model_dir,
             "num_labels": self.num_labels,
+            "head_width": len(self.label_map) if self.label_map else (self.num_labels or None),
             "evidence": [],
         }
 

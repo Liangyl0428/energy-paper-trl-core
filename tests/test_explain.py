@@ -223,6 +223,38 @@ def test_label_map_prefers_semantic_names_and_refuses_to_guess():
         resolve_label_map({}, 7)  # unknown width: refuse instead of guessing
 
 
+def test_current_release_head_width_is_11():
+    from energy_paper_trl.model import CURRENT_HEAD_WIDTH, SUPPORTED_HEAD_WIDTHS
+
+    assert CURRENT_HEAD_WIDTH == 11
+    assert SUPPORTED_HEAD_WIDTHS == (9, 11)
+    mapping = resolve_label_map({}, CURRENT_HEAD_WIDTH)
+    assert mapping[0] == (1, "1")
+    assert mapping[9] == (None, "not_applicable")
+    assert mapping[10] == (None, "insufficient_evidence")
+
+
+def test_scibert_predict_reports_head_width():
+    adapter = object.__new__(SciBERTAdapter)
+    adapter.id2label = {}
+    adapter.num_labels = 11
+    adapter.label_map = resolve_label_map({}, 11)
+    adapter.max_length = 512
+    adapter.model_name = "balanced_scibert_20261023"
+    adapter.model_dir = "/tmp/model"
+    adapter._probs = lambda text: [0.1] * 11
+
+    class _Tok:
+        def __call__(self, text, **kwargs):
+            return {"input_ids": [1, 2, 3]}
+
+    adapter.tokenizer = _Tok()
+    out = adapter.predict("title", "abstract")
+    assert out["head_width"] == 11
+    assert out["num_labels"] == 11
+    assert out["level"] == 1  # all probabilities tie; argmax picks index 0 = TRL 1
+
+
 def _string_label_pipeline():
     """Mimic the balanced 11-way SVM: string labels, including abstain classes."""
     pytest.importorskip("sklearn")
@@ -274,6 +306,8 @@ def test_svm_adapter_accepts_string_labels_and_abstains():
     )
     assert lab["level"] == 4
     assert lab["level_label"] == "4"
+    # head_width mirrors clf.classes_ (this toy head has 3 classes: "2","4",abstain)
+    assert lab["head_width"] == lab["classes"] == 3
 
 
 def test_linear_attribution_handles_abstain_classes():
