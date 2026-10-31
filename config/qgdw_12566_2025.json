@@ -1,0 +1,117 @@
+{
+  "standard_id": "Q/GDW 12566—2025",
+  "title": "技术成熟度评价方法",
+  "issuer": "国家电网有限公司企业标准",
+  "scale_version": "QGDW_12566_2025",
+  "table": "表1 技术成熟度等级定义及定义说明",
+  "source": {
+    "table": "表1 技术成熟度等级定义及定义说明",
+    "pdf_page": 8,
+    "printed_page": 5,
+    "note": "九级定义逐字转录自 Q/GDW 12566—2025 表1；标准原件不随本仓库分发"
+  },
+  "scope": {
+    "applies_to": "国家电网有限公司所涉技术领域内开展的技术成熟度评价活动（标准 1 范围）",
+    "object_rule": "评价对象是具体技术/技术载体；综述、政策、市场分析等不属于技术成熟度评价对象",
+    "not_applicable_requires": "记录技术细则依据与批准人（方法文档 5.1）；公开接口只标注理由，不代替批准"
+  },
+  "judgement_rule": {
+    "gate": "等级 l 的所有必需属性（技术状态/集成状态/试验环境）均有已完成证据，且无未解决的否定、未来计划或他人研究语境",
+    "level_rule": "TRL_evidence = max{ l : Gate(l)=true }；无任一等级成立时返回 null，不返回 0 级、不默认 1 级",
+    "carry_over": "高等级证据不机械要求收齐每个历史阶段的旧报告，但需覆盖该等级隐含的基础能力",
+    "optional_attributes": "标准要求但摘要常不写明的属性标为 optional 并输出 assumption，需人工核对",
+    "keyword_calibration": "门槛关键词是本项目默认细则，不是标准统一规定；具体技术需专家按附录 C 配置",
+    "official_final": "TRL_final 须完成自评与专家评价（标准 5.5）；公开证据只能给出初评，formal_certified_level 恒为 null"
+  },
+  "levels": {
+    "1": {
+      "definition": "发现支撑该技术研发的基本原理",
+      "definition_note": "发现可作为技术研发基础的基本原理",
+      "attributes": {
+        "technical_state": {"any": ["基本原理", "原理", "机理", "principle", "principles", "mechanism", "fundamental mechanism"]},
+        "completion": {"required": false, "any": ["发现", "揭示", "阐明", "提出", "reveal", "reveals", "revealed", "explain", "explains", "explained", "observed"]}
+      },
+      "typical_evidence": "原理性研究、理论推导、机理性观察"
+    },
+    "2": {
+      "definition": "提出基本原理的应用设想",
+      "definition_note": "提出基本原理的实际应用设想，并预测基本功能",
+      "attributes": {
+        "technical_state": {"any": ["应用设想", "应用概念", "application concept", "conceptual design", "application scenario", "设想", "构想"]},
+        "completion": {"required": false, "any": ["提出", "预测", "propose", "proposes", "proposed", "predict", "predicts", "envision", "envisions"]}
+      },
+      "typical_evidence": "应用对象、技术概念与预期功能描述"
+    },
+    "3": {
+      "definition": "关键功能通过理论可行性验证",
+      "definition_note": "确定技术路线并完成方案设计，通过理论分析完成技术可行性验证",
+      "attributes": {
+        "technical_state": {"required": false, "assumption": "摘要未复述“技术路线/方案设计”，以论文提出的方法或模型处理", "any": ["技术路线", "方案设计", "technical route", "design scheme", "conceptual framework", "architecture design", "design of", "methodology", "framework"]},
+        "theoretical_analysis": {"any": ["理论分析", "理论可行性", "可行性分析", "theoretical", "analytical model", "feasibility", "mathematical model", "theoretical study", "first principle", "first-principle", "governing equation"]},
+        "completion": {"required": false, "any": ["完成", "通过", "验证", "complete", "completes", "completed", "confirm", "confirms", "confirmed", "verify", "verifies", "verified"]}
+      },
+      "typical_evidence": "技术路线与方案设计文档、理论推导与可行性分析结论"
+    },
+    "4": {
+      "definition": "系统关键技术得到实验环境验证",
+      "definition_note": "在实验室环境下开展系统关键技术仿真试验并完成验证",
+      "attributes": {
+        "technical_state": {"required": false, "assumption": "“系统关键技术”为评价对象，摘要未复述；以论文主题技术处理", "any": ["系统关键技术", "关键技术", "key technology", "key technologies", "critical function"]},
+        "test_environment": {"required": false, "assumption": "摘要未写明实验/仿真环境，按学术论文默认的实验室条件假定，需人工核对", "any": ["实验室", "实验环境", "laboratory", "laboratories", "lab", "lab-scale", "in-house", "experimental", "experimentally", "test bench", "test rig", "benchtop", "simulation", "simulated", "simulink", "pscad", "rtds", "hardware-in-the-loop", "three-electrode", "half-cell", "half cell", "coin cell", "electrochemical cell", "in situ", "synthesized", "fabricated"]},
+        "activity": {"any": ["仿真", "试验", "测试", "simulation", "simulations", "simulated", "experiment", "experiments", "experimental", "test", "tests", "tested", "measurement", "measurements", "measured", "characterization", "characterized", "cycling", "electrochemical", "developed", "prepared", "synthesized", "synthesize", "fabricated", "fabricate", "manufactured", "assembled", "deposited", "grown", "introduced", "built", "constructed", "implemented", "evaluated", "cycled", "operated", "investigated", "carried out", "conducted", "compared"]},
+        "completion": {"any": ["完成", "验证", "结果", "validated", "validates", "result", "results", "results show", "demonstrate", "demonstrated", "demonstrates", "confirm", "confirms", "confirmed", "verify", "verifies", "verified", "achieve", "achieved", "achieves", "show", "shows", "showed", "shown", "present", "presents", "presented", "exhibit", "exhibits", "exhibited", "reveal", "reveals", "revealed", "report", "reports", "reported", "obtain", "obtained", "yield", "yields", "yielded", "measured", "found", "improve", "improved", "reduce", "reduced", "reach", "reached", "deliver", "delivers", "delivered", "enable", "enables", "enabled", "provide", "provides", "provided", "exceed", "exceeds", "retention", "efficiency", "capacity", "overpotential", "conductivity", "energy density", "power density", "evaluated", "compared"]}
+      },
+      "typical_evidence": "实验室仿真或台架试验的方法、对照、结果与适用边界"
+    },
+    "5": {
+      "definition": "关键部件完成功能测试",
+      "definition_note": "在模拟使用环境下完成关键部件或包含关键部件的分系统测试，测试数据证实达到相关要求",
+      "attributes": {
+        "technical_state": {"any": ["关键部件", "部件", "分系统", "component", "components", "subsystem", "subsystems", "sub-assembly", "electrode", "module"]},
+        "test_environment": {"any": ["模拟使用环境", "模拟环境", "simulated operating environment", "simulated environment", "representative environment", "emulated", "hardware-in-the-loop"]},
+        "completion": {"any": ["测试数据", "达到要求", "满足要求", "meet the requirement", "meets the requirement", "meet requirements", "meets requirements", "requirements met", "requirement met", "test data", "measured", "achieved", "met the", "retention,", "efficiency of"]}
+      },
+      "typical_evidence": "部件/分系统测试报告，含模拟环境配置与合格界限"
+    },
+    "6": {
+      "definition": "原型样机通过验证",
+      "definition_note": "研制完成原型样机，并在模拟使用环境下验证关键功能及性能",
+      "attributes": {
+        "technical_state": {"any": ["原型样机", "原型", "prototype", "prototypes", "breadboard"]},
+        "test_environment": {"any": ["模拟使用环境", "模拟环境", "simulated operating environment", "simulated environment", "representative environment", "emulated"]},
+        "completion": {"any": ["验证", "validated", "validates", "verify", "verified", "关键功能", "性能", "performance", "functionality", "demonstrated", "tested"]}
+      },
+      "typical_evidence": "原型样机图纸/版本、模拟环境试验记录与关键性能结果"
+    },
+    "7": {
+      "definition": "工程样机通过型式试验",
+      "definition_note": "研制完成工程样机，通过典型使用环境下的型式试验，并验证参数和性能",
+      "attributes": {
+        "technical_state": {"any": ["工程样机", "工程测试版", "engineering prototype", "pre-production unit", "field-deployable"]},
+        "test_environment": {"any": ["典型使用环境", "典型环境", "现场", "现场试验", "typical environment", "field test", "field trial", "on-site", "substation", "pilot site"]},
+        "activity": {"any": ["型式试验", "type test", "type tests", "type testing", "工程测试", "qualification test"]},
+        "completion": {"required": false, "any": ["通过", "验证", "合格", "pass", "passes", "passed", "qualified", "verified", "completed"]}
+      },
+      "typical_evidence": "型式试验报告/工程测试记录，含典型环境条件与合格结论"
+    },
+    "8": {
+      "definition": "产品挂网试运行",
+      "definition_note": "设计制造系统级产品，产品挂网/软件上线试运行并完成全面测试",
+      "attributes": {
+        "technical_state": {"any": ["系统级产品", "正式版", "产品化", "system-level product", "production unit", "commercial product"]},
+        "test_environment": {"any": ["挂网", "试运行", "上线试运行", "并网投运", "grid-connected trial", "trial operation", "online trial", "commissioned", "commissioning", "pilot operation"]},
+        "completion": {"required": false, "any": ["全面测试", "完成试运行", "comprehensive test", "comprehensive tests", "full test", "full tests", "site acceptance test", "completed trial operation"]}
+      },
+      "typical_evidence": "挂网/上线批准、试运行记录、全面测试与故障闭环清单"
+    },
+    "9": {
+      "definition": "产品应用",
+      "definition_note": "产品可规模化推广应用",
+      "attributes": {
+        "technical_state": {"any": ["规模化推广", "规模应用", "批量应用", "产业化", "scale deployment", "mass deployment", "commercial deployment", "large-scale application", "widespread adoption"]},
+        "completion": {"any": ["实际工程应用", "工程应用", "实际应用", "投运", "in operation", "deployed", "deployed in", "commercial operation", "in commercial operation", "in service"]}
+      },
+      "typical_evidence": "实际工程应用合同/验收/运行记录，以及规模化推广条件"
+    }
+  }
+}
