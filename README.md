@@ -138,6 +138,16 @@ TRL 1–9 + `not_applicable` + `insufficient_evidence`，可以弃权——弃�
 需要复现旧 9 类权重做对照时，请用完整版 [energy-paper-trl](https://github.com/Liangyl0428/energy-paper-trl)
 的评测脚本（那边保留两套头的对照逻辑）。
 
+### 两套头的训练口径
+
+- **11 类（当前）是原生 11 类训练，不是 9 类模型改标签**：训练集 275 篇（11 类 × 25）、验证 55 篇
+  （11 类 × 5），文本为 OpenAlex 论文 `title + "\n" + abstract`，标签来自助手语义标注
+  （`label_source=assistant_semantic_annotation`，非专家金标）。SVM 为 TF-IDF + LinearSVC；
+  SciBERT 以 `allenai/scibert_scivocab_uncased`（base，revision `24f92d3`）初始化后微调，
+  `max_length=512`。
+- **9 类（旧）**：CORDIS 欧盟项目「项目名 + 项目目标」的项目级银标（regex + TF-IDF 相似度生成），
+  9 类不均衡、不能弃权；与 11 类不是同一批数据，也不是同一套标签。
+
 - 头宽**不写死但只接受 11**：SciBERT 读 checkpoint 的 `config.id2label` / `num_labels`，SVM 读
   `clf.classes_`；两者都必须是 TRL 1–9 + 两个弃权类，否则 `ValueError`（不猜类别顺序）；
 - 两个弃权标签不会变成 10/11，也不进入 `levels` 的数值（此时 `levels.model` 为 `null`）；
